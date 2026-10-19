@@ -1,0 +1,10 @@
+{
+  "id": "ai-templates",
+  "name": "AI Templates",
+  "version": "1.0.0",
+  "minAppVersion": "1.13.0",
+  "description": "Deterministic Markdown templates for AI agents. Fill a template with JSON and get aligned tables, images in your attachment folder and notes saved where you want.",
+  "author": "Emanuell Pires",
+  "authorUrl": "https://github.com/EmanuellCarvalhoPires",
+  "isDesktopOnly": true
+}
