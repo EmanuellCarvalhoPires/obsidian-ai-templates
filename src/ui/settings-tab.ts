@@ -1,17 +1,17 @@
-// Settings tab (declarative, Obsidian 1.13+) for the AI Templates plugin.
-import { Notice, PluginSettingTab, setIcon } from "obsidian";
-import type { App, Plugin, Setting, SettingDefinitionItem, SettingGroupItem } from "obsidian";
+// Settings tab (imperative, Obsidian-standard) for the AI Templates plugin.
+import { Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
+import type { App, Plugin } from "obsidian";
 import type { ConnectorStatus } from "../ecosystem/connector";
 import { installEcosystem, isEcosystemInstalled } from "../ecosystem/dependency-modal";
 import { t } from "../i18n";
-import { normalizeSettings, normalizeTemplatesFolder } from "../settings/settings-store";
+import { normalizeTemplatesFolder } from "../settings/settings-store";
 import type { LoadResult } from "../templates/template-loader";
 import {
   DEFAULT_SETTINGS,
   MAX_BASE64_LIMIT_MB,
   MIN_BASE64_LIMIT_MB,
 } from "../types/template-types";
-import type { AITemplatesSettings } from "../types/template-types";
+import type { AITemplatesSettings, CollisionRule } from "../types/template-types";
 
 export interface SettingsHost {
   settings: AITemplatesSettings;
@@ -77,312 +77,251 @@ export class AITemplatesSettingTab extends PluginSettingTab {
 
   refresh(): void {
     try {
-      this.update();
+      if (this.containerEl && this.containerEl.isShown()) {
+        this.display();
+      }
     } catch (err) {
       console.debug("[AI Templates] Could not refresh the settings tab", err);
     }
   }
 
-  getControlValue(key: string): unknown {
-    const { settings } = this.host;
-    switch (key) {
-      case "templatesFolder":
-        return settings.templatesFolder;
-      case "defaultCollisionRule":
-        return settings.defaultCollisionRule;
-      case "classicMarkdownLinks":
-        return settings.classicMarkdownLinks;
-      case "base64LimitMb":
-        return settings.base64LimitMb;
-      default:
-        return undefined;
+  display(): void {
+    const { containerEl } = this;
+    containerEl.empty();
+
+    this.renderEcosystemGroup(containerEl);
+    this.renderGeneralGroup(containerEl);
+    this.renderFoldersGroup(containerEl);
+    this.renderLoadedTemplatesGroup(containerEl);
+  }
+
+  private renderEcosystemGroup(containerEl: HTMLElement): void {
+    new Setting(containerEl).setHeading().setName(t("settings.ecosystem.heading"));
+
+    // Ecosystem Status
+    const statusSetting = new Setting(containerEl);
+    const { status, detail } = this.host.getConnectorStatus();
+    const meta = statusMeta(status, detail);
+    statusSetting.setName(meta.title).setDesc(meta.desc);
+    const iconEl = createSpan({ cls: `ait-status-icon ait-status-${meta.state}` });
+    setIcon(iconEl, meta.icon);
+    statusSetting.nameEl.prepend(iconEl);
+
+    if (status === "missing") {
+      const installed = isEcosystemInstalled(this.app);
+      statusSetting.addButton((btn) =>
+        btn
+          .setButtonText(installed ? t("settings.ecosystem.enable") : t("settings.ecosystem.install"))
+          .setIcon("download")
+          .setCta()
+          .onClick(() => {
+            btn.setDisabled(true);
+            void installEcosystem(this.app)
+              .then(() => {
+                new Notice(t("dependency.installed"));
+                this.display();
+              })
+              .catch(() => {
+                new Notice(t("dependency.failed"));
+                btn.setDisabled(false);
+              });
+          }),
+      );
     }
+
+    // Open Manager Button
+    new Setting(containerEl)
+      .setName(t("settings.ecosystem.openManager"))
+      .setDesc(t("settings.ecosystem.openManagerDesc"))
+      .addButton((btn) =>
+        btn
+          .setButtonText(t("settings.ecosystem.openManagerBtn"))
+          .setIcon("file-spreadsheet")
+          .onClick(() => this.host.openTemplateManager()),
+      );
   }
 
-  async setControlValue(key: string, value: unknown): Promise<void> {
+  private renderGeneralGroup(containerEl: HTMLElement): void {
     const { settings } = this.host;
-    switch (key) {
-      case "templatesFolder":
-        settings.templatesFolder = normalizeTemplatesFolder(value);
-        break;
-      case "defaultCollisionRule":
-        settings.defaultCollisionRule = normalizeSettings({ ...settings, defaultCollisionRule: value }).defaultCollisionRule;
-        break;
-      case "classicMarkdownLinks":
-        settings.classicMarkdownLinks = Boolean(value);
-        break;
-      case "base64LimitMb":
-        settings.base64LimitMb = normalizeSettings({ ...settings, base64LimitMb: value }).base64LimitMb;
-        break;
-      default:
-        return;
-    }
-    await this.host.saveSettings();
+    new Setting(containerEl).setHeading().setName(t("settings.general.heading"));
+
+    new Setting(containerEl)
+      .setName(t("settings.general.folder"))
+      .setDesc(t("settings.general.folderDesc"))
+      .addText((text) => {
+        text
+          .setPlaceholder(t("settings.general.folderPlaceholder"))
+          .setValue(settings.templatesFolder)
+          .onChange(async (v) => {
+            settings.templatesFolder = normalizeTemplatesFolder(v);
+            await this.host.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName(t("settings.general.collision"))
+      .setDesc(t("settings.general.collisionDesc"))
+      .addDropdown((drop) => {
+        drop
+          .addOption("incremental", t("settings.general.collision.incremental"))
+          .addOption("overwrite", t("settings.general.collision.overwrite"))
+          .addOption("error", t("settings.general.collision.error"))
+          .setValue(settings.defaultCollisionRule)
+          .onChange(async (val) => {
+            settings.defaultCollisionRule = val as CollisionRule;
+            await this.host.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName(t("settings.general.classicLinks"))
+      .setDesc(t("settings.general.classicLinksDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(settings.classicMarkdownLinks).onChange(async (val) => {
+          settings.classicMarkdownLinks = val;
+          await this.host.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName(t("settings.general.base64Limit"))
+      .setDesc(t("settings.general.base64LimitDesc"))
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = String(MIN_BASE64_LIMIT_MB);
+        text.inputEl.max = String(MAX_BASE64_LIMIT_MB);
+        text.inputEl.step = "0.1";
+        text.setValue(String(settings.base64LimitMb));
+        text.onChange(async (val) => {
+          const num = parseFloat(val);
+          if (Number.isFinite(num) && num >= MIN_BASE64_LIMIT_MB && num <= MAX_BASE64_LIMIT_MB) {
+            text.inputEl.removeClass("has-error");
+            settings.base64LimitMb = num;
+            await this.host.saveSettings();
+          } else {
+            text.inputEl.addClass("has-error");
+          }
+        });
+      });
   }
 
-  getSettingDefinitions(): SettingDefinitionItem[] {
-    return [
-      this.ecosystemGroup(),
-      this.generalGroup(),
-      this.foldersGroup(),
-      this.loadedTemplatesGroup(),
-    ];
-  }
-
-  private ecosystemGroup(): SettingDefinitionItem {
-    return {
-      type: "group",
-      heading: t("settings.ecosystem.heading"),
-      items: [
-        {
-          name: t("settings.ecosystem.heading"),
-          searchable: false,
-          render: (setting: Setting) => {
-            const { status, detail } = this.host.getConnectorStatus();
-            const meta = statusMeta(status, detail);
-            setting.setName(meta.title).setDesc(meta.desc);
-            const iconEl = createSpan({ cls: `ait-status-icon ait-status-${meta.state}` });
-            setIcon(iconEl, meta.icon);
-            setting.nameEl.prepend(iconEl);
-
-            if (status === "missing") {
-              const installed = isEcosystemInstalled(this.app);
-              setting.addButton((btn) =>
-                btn
-                  .setButtonText(installed ? t("settings.ecosystem.enable") : t("settings.ecosystem.install"))
-                  .setIcon("download")
-                  .setCta()
-                  .onClick(() => {
-                    btn.setDisabled(true);
-                    void installEcosystem(this.app)
-                      .then(() => {
-                        new Notice(t("dependency.installed"));
-                        this.refresh();
-                      })
-                      .catch(() => {
-                        new Notice(t("dependency.failed"));
-                        btn.setDisabled(false);
-                      });
-                  }),
-              );
-            }
-          },
-        },
-        {
-          name: t("settings.ecosystem.openManager"),
-          desc: t("settings.ecosystem.openManagerDesc"),
-          render: (setting: Setting) => {
-            setting.addButton((btn) =>
-              btn
-                .setButtonText(t("settings.ecosystem.openManagerBtn"))
-                .setIcon("file-spreadsheet")
-                .onClick(() => this.host.openTemplateManager()),
-            );
-          },
-        },
-      ],
-    };
-  }
-
-  private generalGroup(): SettingDefinitionItem {
+  private renderFoldersGroup(containerEl: HTMLElement): void {
     const { settings } = this.host;
-    return {
-      type: "group",
-      heading: t("settings.general.heading"),
-      items: [
-        {
-          name: t("settings.general.folder"),
-          desc: t("settings.general.folderDesc"),
-          control: {
-            type: "text",
-            key: "templatesFolder",
-            placeholder: t("settings.general.folderPlaceholder"),
-          },
-        },
-        {
-          name: t("settings.general.collision"),
-          desc: t("settings.general.collisionDesc"),
-          control: {
-            type: "dropdown",
-            key: "defaultCollisionRule",
-            options: {
-              incremental: t("settings.general.collision.incremental"),
-              overwrite: t("settings.general.collision.overwrite"),
-              error: t("settings.general.collision.error"),
-            },
-          },
-        },
-        {
-          name: t("settings.general.classicLinks"),
-          desc: t("settings.general.classicLinksDesc"),
-          control: {
-            type: "toggle",
-            key: "classicMarkdownLinks",
-          },
-        },
-        {
-          name: t("settings.general.base64Limit"),
-          desc: t("settings.general.base64LimitDesc"),
-          control: {
-            type: "number",
-            key: "base64LimitMb",
-            min: MIN_BASE64_LIMIT_MB,
-            max: MAX_BASE64_LIMIT_MB,
-            step: 0.1,
-            defaultValue: settings.base64LimitMb,
-          },
-        },
-      ],
-    };
-  }
+    const groupSetting = new Setting(containerEl).setHeading().setName(t("settings.folders.heading"));
+    groupSetting.setDesc(t("settings.folders.desc"));
 
-  private foldersGroup(): SettingDefinitionItem {
-    const { settings } = this.host;
-    const folderItems: SettingGroupItem[] = settings.allowedImageFolders.map((folder, idx) => ({
-      name: folder,
-      searchable: false,
-      render: (setting: Setting) => {
-        setting.setName(folder);
-        setting.nameEl.addClass("ait-mono");
-        setting.addExtraButton((btn) =>
+    if (settings.allowedImageFolders.length === 0) {
+      containerEl.createDiv({ cls: "ait-empty-state", text: t("settings.folders.empty") });
+    } else {
+      settings.allowedImageFolders.forEach((folder, idx) => {
+        const item = new Setting(containerEl).setName(folder);
+        item.nameEl.addClass("ait-mono");
+        item.addExtraButton((btn) =>
           btn
             .setIcon("trash-2")
             .setTooltip(t("settings.folders.remove"))
-            .onClick(() => {
+            .onClick(async () => {
               settings.allowedImageFolders = settings.allowedImageFolders.filter((_, i) => i !== idx);
-              void this.host.saveSettings().then(() => this.refresh());
+              await this.host.saveSettings();
+              this.display();
             }),
         );
-      },
-    }));
+      });
+    }
 
-    return {
-      type: "group",
-      heading: t("settings.folders.heading"),
-      desc: t("settings.folders.desc"),
-      items: [
-        ...(folderItems.length > 0
-          ? folderItems
-          : [
-              {
-                name: t("settings.folders.empty"),
-                searchable: false,
-              } satisfies SettingGroupItem,
-            ]),
-        {
-          name: t("settings.folders.add"),
-          searchable: false,
-          render: (setting: Setting) => {
-            setting.addText((text) => {
-              text
-                .setPlaceholder(t("settings.folders.addPlaceholder"))
-                .setValue(this.newFolderInput)
-                .onChange((v) => {
-                  this.newFolderInput = v;
-                });
-            });
-            setting.addButton((btn) =>
-              btn
-                .setButtonText(t("settings.folders.add"))
-                .setIcon("plus")
-                .onClick(() => {
-                  const value = this.newFolderInput.trim();
-                  if (value === "") {
-                    new Notice(t("settings.folders.invalid"));
-                    return;
-                  }
-                  if (settings.allowedImageFolders.includes(value)) {
-                    new Notice(t("settings.folders.duplicate"));
-                    return;
-                  }
-                  settings.allowedImageFolders = [...settings.allowedImageFolders, value];
-                  this.newFolderInput = "";
-                  void this.host.saveSettings().then(() => this.refresh());
-                }),
-            );
-          },
-        },
-        {
-          name: t("settings.folders.reset"),
-          desc: t("settings.folders.resetDesc"),
-          searchable: false,
-          render: (setting: Setting) => {
-            setting.addButton((btn) =>
-              btn
-                .setButtonText(t("settings.folders.reset"))
-                .setIcon("rotate-ccw")
-                .onClick(() => {
-                  settings.allowedImageFolders = [...DEFAULT_SETTINGS.allowedImageFolders];
-                  void this.host.saveSettings().then(() => this.refresh());
-                }),
-            );
-          },
-        },
-      ],
-    };
+    new Setting(containerEl)
+      .setName(t("settings.folders.add"))
+      .addText((text) => {
+        text
+          .setPlaceholder(t("settings.folders.addPlaceholder"))
+          .setValue(this.newFolderInput)
+          .onChange((v) => {
+            this.newFolderInput = v;
+          });
+      })
+      .addButton((btn) =>
+        btn
+          .setButtonText(t("settings.folders.add"))
+          .setIcon("plus")
+          .onClick(async () => {
+            const value = this.newFolderInput.trim();
+            if (value === "") {
+              new Notice(t("settings.folders.invalid"));
+              return;
+            }
+            if (settings.allowedImageFolders.includes(value)) {
+              new Notice(t("settings.folders.duplicate"));
+              return;
+            }
+            settings.allowedImageFolders = [...settings.allowedImageFolders, value];
+            this.newFolderInput = "";
+            await this.host.saveSettings();
+            this.display();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName(t("settings.folders.reset"))
+      .setDesc(t("settings.folders.resetDesc"))
+      .addButton((btn) =>
+        btn
+          .setButtonText(t("settings.folders.reset"))
+          .setIcon("rotate-ccw")
+          .onClick(async () => {
+            settings.allowedImageFolders = [...DEFAULT_SETTINGS.allowedImageFolders];
+            await this.host.saveSettings();
+            this.display();
+          }),
+      );
   }
 
-  private loadedTemplatesGroup(): SettingDefinitionItem {
+  private renderLoadedTemplatesGroup(containerEl: HTMLElement): void {
+    new Setting(containerEl).setHeading().setName(t("settings.status.heading"));
+
     const loaded = this.host.getLoadResult();
     const count = loaded?.templates.length ?? 0;
     const problems = loaded?.problems ?? [];
 
-    const templateItems: SettingGroupItem[] = (loaded?.templates ?? []).map((tpl) => ({
-      name: tpl.id,
-      desc: `${tpl.description} (${tpl.sourcePath})`,
-      searchable: false,
-      render: (setting: Setting) => {
-        setting.setName(tpl.id).setDesc(`${tpl.description} (${tpl.sourcePath})`);
-        setting.nameEl.addClass("ait-mono");
-        setting.addExtraButton((btn) =>
-          btn
-            .setIcon("file-text")
-            .setTooltip(t("modal.openNote"))
-            .onClick(() => void this.host.openNote(tpl.sourcePath)),
-        );
-      },
-    }));
+    new Setting(containerEl)
+      .setName(t("settings.status.summary", { count, folder: this.host.settings.templatesFolder }))
+      .setDesc(
+        problems.length === 0
+          ? t("settings.status.noProblems")
+          : t("settings.status.problemsCount", { count: problems.length }),
+      )
+      .addButton((btn) =>
+        btn
+          .setButtonText(t("settings.status.reload"))
+          .setIcon("refresh-cw")
+          .onClick(async () => {
+            await this.host.reloadTemplates();
+            this.display();
+          }),
+      );
 
-    const problemItems: SettingGroupItem[] = problems.map((problem) => ({
-      name: problem.path,
-      desc: problem.message,
-      searchable: false,
-      render: (setting: Setting) => {
-        const label = problem.level === "error" ? t("settings.status.levelError") : t("settings.status.levelWarning");
-        setting.setName(`${label}: ${problem.path}`).setDesc(problem.message);
-        const iconSpan = createSpan({
-          cls: `ait-status-icon ${problem.level === "error" ? "ait-status-error" : "ait-status-waiting"}`,
-        });
-        setIcon(iconSpan, problem.level === "error" ? "x-circle" : "alert-triangle");
-        setting.nameEl.prepend(iconSpan);
-      },
-    }));
+    for (const tpl of loaded?.templates ?? []) {
+      const setting = new Setting(containerEl)
+        .setName(tpl.id)
+        .setDesc(`${tpl.description} (${tpl.sourcePath})`);
+      setting.nameEl.addClass("ait-mono");
+      setting.addExtraButton((btn) =>
+        btn
+          .setIcon("file-text")
+          .setTooltip(t("modal.openNote"))
+          .onClick(() => void this.host.openNote(tpl.sourcePath)),
+      );
+    }
 
-    return {
-      type: "group",
-      heading: t("settings.status.heading"),
-      items: [
-        {
-          name: t("settings.status.summary", { count, folder: this.host.settings.templatesFolder }),
-          desc:
-            problems.length === 0
-              ? t("settings.status.noProblems")
-              : t("settings.status.problemsCount", { count: problems.length }),
-          searchable: false,
-          render: (setting: Setting) => {
-            setting.addButton((btn) =>
-              btn
-                .setButtonText(t("settings.status.reload"))
-                .setIcon("refresh-cw")
-                .onClick(() => {
-                  void this.host.reloadTemplates().then(() => this.refresh());
-                }),
-            );
-          },
-        },
-        ...templateItems,
-        ...problemItems,
-      ],
-    };
+    for (const problem of problems) {
+      const label = problem.level === "error" ? t("settings.status.levelError") : t("settings.status.levelWarning");
+      const setting = new Setting(containerEl)
+        .setName(`${label}: ${problem.path}`)
+        .setDesc(problem.message);
+      const iconSpan = createSpan({
+        cls: `ait-status-icon ${problem.level === "error" ? "ait-status-error" : "ait-status-waiting"}`,
+      });
+      setIcon(iconSpan, problem.level === "error" ? "x-circle" : "alert-triangle");
+      setting.nameEl.prepend(iconSpan);
+    }
   }
 }
