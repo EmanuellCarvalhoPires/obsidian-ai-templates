@@ -10,7 +10,7 @@ import type { RenderChannel } from "../types/template-types";
 import { formatDate } from "./clock";
 import { registerFilters } from "./filters";
 import { SafeHtml } from "./image-value";
-import { escapeTelegramHtml } from "./table-formatter";
+import { cellToString, escapeTelegramHtml } from "./table-formatter";
 
 export interface EngineLimits {
   /** Largest template source accepted, in characters. */
@@ -88,7 +88,7 @@ function toTemplateError(err: unknown, phase: "parse" | "render"): TemplateError
 function telegramEscape(value: unknown): string {
   if (value instanceof SafeHtml) return value.html;
   if (value === undefined || value === null) return "";
-  return escapeTelegramHtml(Array.isArray(value) ? value.map((v) => String(v)).join("") : String(value));
+  return escapeTelegramHtml(Array.isArray(value) ? value.map((v) => cellToString(v)).join("") : cellToString(value));
 }
 
 export class TemplateEngine {
@@ -142,7 +142,7 @@ export class TemplateEngine {
         globals: { today: formatDate(now, "YYYY-MM-DD"), now_iso: now.toISOString() },
         templateLimit: 500_000,
       });
-      return typeof out === "string" ? out : String(out ?? "");
+      return typeof out === "string" ? out : cellToString(out);
     } catch (err) {
       throw toTemplateError(err, "render");
     }

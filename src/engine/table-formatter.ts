@@ -38,7 +38,7 @@ export function cellToString(value: unknown): string {
   try {
     return JSON.stringify(value) ?? "";
   } catch {
-    return String(value);
+    return "[object Object]";
   }
 }
 
@@ -123,7 +123,7 @@ function matrixFromRows(headers: string[], rows: unknown[][]): TableMatrix {
 
 function rowsFromObjects(headers: string[], rows: unknown[]): unknown[][] {
   return rows.map((row, index) => {
-    if (Array.isArray(row)) return row;
+    if (Array.isArray(row)) return row as unknown[];
     if (isPlainObject(row)) return headers.map((h) => row[h]);
     throw new TableError(`Row ${index + 1} must be an array or an object, got ${describe(row)}.`);
   });
@@ -149,10 +149,10 @@ export function normalizeTable(input: unknown, options: TableOptions = {}): Tabl
     if (input.length === 0) return { headers: declared.slice(), rows: [] };
     if (input.every(isPlainObject)) {
       const headers = declared.slice();
-      for (const row of input as Array<Record<string, unknown>>) {
+      for (const row of input) {
         for (const key of Object.keys(row)) if (!headers.includes(key)) headers.push(key);
       }
-      return { headers, rows: input.map((row) => headers.map((h) => (row as Record<string, unknown>)[h])) };
+      return { headers, rows: input.map((row) => headers.map((h) => row[h])) };
     }
     if (declared.length > 0 && input.every((r) => Array.isArray(r))) {
       return matrixFromRows(declared, input as unknown[][]);
@@ -178,7 +178,7 @@ export function normalizeTable(input: unknown, options: TableOptions = {}): Tabl
     if (headers.length === 0) headers = declared.slice();
     if (headers.length === 0 && rawRows && rawRows.length > 0 && rawRows.every(isPlainObject)) {
       // No headers anywhere: the keys of the row objects become the columns.
-      for (const row of rawRows as Array<Record<string, unknown>>) {
+      for (const row of rawRows) {
         for (const key of Object.keys(row)) if (!headers.includes(key)) headers.push(key);
       }
     }

@@ -3,6 +3,105 @@
 // vi.spyOn in the test file instead.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { parse, stringify } from "yaml";
+
+export function parseYaml(text: string): unknown {
+  return parse(text);
+}
+
+export function stringifyYaml(obj: unknown): string {
+  return stringify(obj);
+}
+
+export function createMockElement(tag = "div", opts: any = {}): any {
+  const children: any[] = [];
+  const classes = new Set<string>(
+    typeof opts.cls === "string"
+      ? opts.cls.split(/\s+/).filter(Boolean)
+      : Array.isArray(opts.cls)
+        ? opts.cls
+        : [],
+  );
+  const attrs: Record<string, string> = { ...(opts.attr ?? {}) };
+  const listeners = new Map<string, Array<(...args: any[]) => any>>();
+  const el: any = {
+    tagName: tag.toUpperCase(),
+    textContent: opts.text ?? "",
+    value: opts.value ?? "",
+    children,
+    dataset: {},
+    style: {},
+    attrs,
+    classList: {
+      add: (...c: string[]) => c.forEach((x) => classes.add(x)),
+      remove: (...c: string[]) => c.forEach((x) => classes.delete(x)),
+      contains: (c: string) => classes.has(c),
+      toggle: (c: string, force?: boolean) => {
+        const shouldAdd = force ?? !classes.has(c);
+        if (shouldAdd) classes.add(c);
+        else classes.delete(c);
+        return shouldAdd;
+      },
+    },
+    empty() {
+      children.length = 0;
+      el.textContent = "";
+    },
+    addClass(...c: string[]) {
+      c.forEach((x) => classes.add(x));
+    },
+    removeClass(...c: string[]) {
+      c.forEach((x) => classes.delete(x));
+    },
+    hasClass(c: string) {
+      return classes.has(c);
+    },
+    setText(text: string) {
+      el.textContent = text;
+    },
+    appendText(text: string) {
+      el.textContent += text;
+    },
+    setAttr(k: string, v: any) {
+      if (v === null || v === undefined) delete attrs[k];
+      else attrs[k] = String(v);
+    },
+    getAttr(k: string) {
+      return attrs[k] ?? null;
+    },
+    createEl(childTag: string, childOpts?: any) {
+      const child = createMockElement(childTag, childOpts);
+      children.push(child);
+      return child;
+    },
+    createDiv(childOpts?: any) {
+      return el.createEl("div", childOpts);
+    },
+    createSpan(childOpts?: any) {
+      return el.createEl("span", childOpts);
+    },
+    appendChild(child: any) {
+      children.push(child);
+      return child;
+    },
+    addEventListener(evt: string, cb: (...args: any[]) => any) {
+      const list = listeners.get(evt) ?? [];
+      list.push(cb);
+      listeners.set(evt, list);
+    },
+    removeEventListener(evt: string, cb: (...args: any[]) => any) {
+      const list = listeners.get(evt) ?? [];
+      listeners.set(
+        evt,
+        list.filter((fn) => fn !== cb),
+      );
+    },
+    dispatchEvent(evt: { type: string; [k: string]: any }) {
+      for (const fn of listeners.get(evt.type) ?? []) fn(evt);
+    },
+  };
+  return el;
+}
 
 export const requestUrlMock = {
   handler: async (_req: any): Promise<any> => {
@@ -57,8 +156,8 @@ export const Platform = {
 export const notices: string[] = [];
 export class Notice {
   message: string;
-  noticeEl: any = {};
-  containerEl: any = { addClass() {}, removeClass() {} };
+  noticeEl: any = createMockElement("div");
+  containerEl: any = createMockElement("div");
   constructor(message: string | DocumentFragment, _timeout?: number) {
     this.message = typeof message === "string" ? message : "[fragment]";
     notices.push(this.message);
@@ -123,23 +222,24 @@ export class Plugin extends Component {
     return cmd;
   }
   addRibbonIcon(..._args: any[]) {
-    return {};
+    return createMockElement("div");
   }
   registerView(..._args: any[]) {}
   addStatusBarItem() {
-    return {};
+    return createMockElement("div");
   }
 }
 
 export class ItemView extends Component {
   app: any;
   leaf: any;
-  containerEl: any;
-  contentEl: any;
+  containerEl: any = createMockElement("div");
+  contentEl: any = createMockElement("div");
   constructor(leaf: any) {
     super();
     this.leaf = leaf;
     this.app = leaf?.app;
+    this.containerEl.children.push(createMockElement("div"), this.contentEl);
   }
   getViewType() {
     return "";
@@ -154,17 +254,22 @@ export class ItemView extends Component {
 
 export class Modal {
   app: any;
-  contentEl: any;
-  titleEl: any;
-  modalEl: any;
+  contentEl: any = createMockElement("div");
+  titleEl: any = createMockElement("div");
+  modalEl: any = createMockElement("div");
   constructor(app: any) {
     this.app = app;
   }
-  open() {}
-  close() {}
+  open() {
+    this.onOpen();
+  }
+  close() {
+    this.onClose();
+  }
   onOpen() {}
   onClose() {}
-  setTitle(_t: string) {
+  setTitle(t: string) {
+    this.titleEl.textContent = t;
     return this;
   }
 }
@@ -172,7 +277,7 @@ export class Modal {
 export class PluginSettingTab {
   app: any;
   plugin: any;
-  containerEl: any;
+  containerEl: any = createMockElement("div");
   constructor(app: any, plugin: any) {
     this.app = app;
     this.plugin = plugin;
@@ -182,37 +287,161 @@ export class PluginSettingTab {
 }
 
 export class Setting {
-  settingEl: any = {};
-  controlEl: any = {};
-  constructor(_containerEl: any) {}
-  setName(_n: any) {
+  settingEl: any = createMockElement("div");
+  controlEl: any = createMockElement("div");
+  nameEl: any = createMockElement("div");
+  descEl: any = createMockElement("div");
+  constructor(containerEl?: any) {
+    if (containerEl && typeof containerEl.appendChild === "function") {
+      containerEl.appendChild(this.settingEl);
+    }
+  }
+  setName(n: any) {
+    this.nameEl.textContent = typeof n === "string" ? n : "";
     return this;
   }
-  setDesc(_d: any) {
+  setDesc(d: any) {
+    this.descEl.textContent = typeof d === "string" ? d : "";
     return this;
   }
   setHeading() {
     return this;
   }
-  setClass(_c: string) {
+  setClass(c: string) {
+    this.settingEl.addClass(c);
     return this;
   }
-  addText(_cb: any) {
+  addText(cb: any) {
+    const comp: any = {
+      inputEl: createMockElement("input"),
+      value: "",
+      setPlaceholder() {
+        return comp;
+      },
+      setValue(v: string) {
+        comp.value = v;
+        comp.inputEl.value = v;
+        return comp;
+      },
+      getValue() {
+        return comp.value;
+      },
+      onChange(_fn: (v: string) => any) {
+        return comp;
+      },
+    };
+    if (typeof cb === "function") cb(comp);
     return this;
   }
-  addTextArea(_cb: any) {
+  addTextArea(cb: any) {
+    const comp: any = {
+      inputEl: createMockElement("textarea"),
+      value: "",
+      setPlaceholder() {
+        return comp;
+      },
+      setValue(v: string) {
+        comp.value = v;
+        comp.inputEl.value = v;
+        return comp;
+      },
+      getValue() {
+        return comp.value;
+      },
+      onChange(_fn: (v: string) => any) {
+        return comp;
+      },
+    };
+    if (typeof cb === "function") cb(comp);
     return this;
   }
-  addToggle(_cb: any) {
+  addToggle(cb: any) {
+    const comp: any = {
+      toggleEl: createMockElement("div"),
+      value: false,
+      setValue(v: boolean) {
+        comp.value = v;
+        return comp;
+      },
+      getValue() {
+        return comp.value;
+      },
+      onChange(_fn: (v: boolean) => any) {
+        return comp;
+      },
+    };
+    if (typeof cb === "function") cb(comp);
     return this;
   }
-  addButton(_cb: any) {
+  addButton(cb: any) {
+    const comp: any = {
+      buttonEl: createMockElement("button"),
+      disabled: false,
+      setButtonText(t: string) {
+        comp.buttonEl.textContent = t;
+        return comp;
+      },
+      setCta() {
+        return comp;
+      },
+      setWarning() {
+        return comp;
+      },
+      setDisabled(d: boolean) {
+        comp.disabled = d;
+        return comp;
+      },
+      setIcon(_i: string) {
+        return comp;
+      },
+      setTooltip(_t: string) {
+        return comp;
+      },
+      onClick(_fn: () => any) {
+        return comp;
+      },
+    };
+    if (typeof cb === "function") cb(comp);
     return this;
   }
-  addExtraButton(_cb: any) {
+  addExtraButton(cb: any) {
+    const comp: any = {
+      extraSettingsEl: createMockElement("button"),
+      setIcon(_i: string) {
+        return comp;
+      },
+      setTooltip(_t: string) {
+        return comp;
+      },
+      onClick(_fn: () => any) {
+        return comp;
+      },
+    };
+    if (typeof cb === "function") cb(comp);
     return this;
   }
-  addDropdown(_cb: any) {
+  addDropdown(cb: any) {
+    const comp: any = {
+      selectEl: createMockElement("select"),
+      value: "",
+      addOption(_k: string, _v: string) {
+        return comp;
+      },
+      addOptions(_o: Record<string, string>) {
+        return comp;
+      },
+      setValue(v: string) {
+        comp.value = v;
+        return comp;
+      },
+      getValue() {
+        return comp.value;
+      },
+      onChange(_fn: (v: string) => any) {
+        return comp;
+      },
+    };
+    if (typeof cb === "function") cb(comp);
     return this;
   }
 }
@@ -236,3 +465,4 @@ export class FileSystemAdapter {
 }
 
 export class WorkspaceLeaf {}
+

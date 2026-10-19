@@ -1,0 +1,89 @@
+/* Settings tab styles for AI Templates (prefix: ait-). */
+.ait-status-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.ait-status-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ait-status-icon.ait-status-connected {
+  color: var(--text-success);
+}
+
+.ait-status-icon.ait-status-waiting {
+  color: var(--text-muted);
+}
+
+.ait-status-icon.ait-status-error {
+  color: var(--text-error);
+}
+
+.ait-folder-list,
+.ait-template-summary-list {
+  margin-bottom: 12px;
+}
+
+.ait-problems-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ait-problem-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  font-size: 0.88em;
+}
+
+.ait-problem-item.ait-problem-error {
+  border-color: var(--text-error);
+}
+
+.ait-problem-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ait-problem-error .ait-problem-icon {
+  color: var(--text-error);
+}
+
+.ait-problem-warning .ait-problem-icon {
+  color: var(--text-muted);
+}
+
+.ait-problem-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ait-problem-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.ait-problem-level {
+  color: var(--text-normal);
+}
+
+.ait-problem-message {
+  color: var(--text-muted);
+  word-break: break-word;
+}

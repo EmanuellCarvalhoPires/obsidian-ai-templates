@@ -24,8 +24,9 @@ export const registerDateFilters: FilterRegistrar = (engine, env) => {
     },
     *render(ctx, emitter) {
       let format = DEFAULT_DATE_FORMAT;
-      if (this.format !== "") {
-        const evaluated: unknown = yield this.liquid.evalValue(this.format, ctx);
+      const rawFormat = typeof this.format === "string" ? this.format : "";
+      if (rawFormat !== "") {
+        const evaluated: unknown = yield this.liquid.evalValue(rawFormat, ctx);
         if (typeof evaluated === "string" && evaluated !== "") format = evaluated;
       }
       emitter.write(formatDate(env.now(), format));

@@ -14,7 +14,8 @@ export interface MomentStatics {
 
 /** The moment function of the host, or undefined when it is not available. */
 export function getMoment(): (MomentFactory & Partial<MomentStatics>) | undefined {
-  const candidate = (globalThis as { moment?: unknown }).moment;
+  const host = typeof window !== "undefined" ? (window as unknown as { moment?: unknown }) : undefined;
+  const candidate = host?.moment;
   return typeof candidate === "function" ? (candidate as MomentFactory & Partial<MomentStatics>) : undefined;
 }
 

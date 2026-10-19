@@ -6,7 +6,12 @@ import type { CollisionRule, FieldSpec, FieldType, TemplateDefinition, TemplateP
 export const TEMPLATE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 export const FIELD_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
-const FRONTMATTER = /^﻿?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
+const FRONTMATTER = /^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
+
+function formatScalar(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  return typeof value;
+}
 
 export function splitFrontmatter(content: string): { yaml: string | undefined; body: string } {
   const match = FRONTMATTER.exec(content);
@@ -48,7 +53,7 @@ export function parseFields(raw: unknown): FieldsParse {
     }
     const type = (spec.type === undefined ? "string" : spec.type) as FieldType;
     if (!FIELD_TYPES.includes(type)) {
-      errors.push(`Field "${name}" has the type "${String(spec.type)}". Valid types: ${FIELD_TYPES.join(", ")}.`);
+      errors.push(`Field "${name}" has the type "${formatScalar(spec.type)}". Valid types: ${FIELD_TYPES.join(", ")}.`);
       continue;
     }
     let columns: string[] | undefined;
@@ -107,7 +112,7 @@ export function parseTemplateNote(path: string, content: string): ParsedNote {
     problems.push({ level: "error", path, templateId: rawId || undefined, message });
   };
   if (!TEMPLATE_ID_PATTERN.test(rawId)) {
-    error(`template_id "${String(front.template_id)}" is not valid: use letters, digits, "_" and "-" (up to 64 characters).`);
+    error(`template_id "${formatScalar(front.template_id)}" is not valid: use letters, digits, "_" and "-" (up to 64 characters).`);
     return { isTemplate: true, problems };
   }
 
@@ -127,7 +132,7 @@ export function parseTemplateNote(path: string, content: string): ParsedNote {
     if (typeof front.collision_rule === "string" && (COLLISION_RULES as readonly string[]).includes(front.collision_rule)) {
       collisionRule = front.collision_rule as CollisionRule;
     } else {
-      error(`collision_rule "${String(front.collision_rule)}" is not valid. Use: ${COLLISION_RULES.join(", ")}.`);
+      error(`collision_rule "${formatScalar(front.collision_rule)}" is not valid. Use: ${COLLISION_RULES.join(", ")}.`);
     }
   }
 

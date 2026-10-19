@@ -1,0 +1,65 @@
+/* Core status bar and shared utility styles for AI Templates (prefix: ait-). */
+.ait-status-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ait-status-bar-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ait-status-bar-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ait-status-bar.ait-state-connected .ait-status-bar-icon {
+  color: var(--text-success);
+}
+
+.ait-status-bar.ait-state-waiting .ait-status-bar-icon {
+  color: var(--text-muted);
+}
+
+.ait-status-bar.ait-state-error .ait-status-bar-icon {
+  color: var(--text-error);
+}
+
+.ait-status-bar:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+.ait-mono {
+  font-family: var(--font-monospace);
+}
+
+.ait-muted {
+  color: var(--text-muted);
+}
+
+.ait-empty-state {
+  padding: 10px 12px;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.ait-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 0.78em;
+}
+
+.ait-badge-required {
+  color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}

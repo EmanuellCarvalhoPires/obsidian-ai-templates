@@ -22,7 +22,8 @@ function readWidth(args: unknown[]): number | undefined {
   if (raw === undefined || raw === null || raw === "") return undefined;
   const width = Number(raw);
   if (!Number.isFinite(width) || width <= 0 || width > 10000) {
-    throw new FilterError("obsidian_image", `the width must be a positive number of pixels, got "${String(raw)}"`);
+    const label = typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean" ? String(raw) : typeof raw;
+    throw new FilterError("obsidian_image", `the width must be a positive number of pixels, got "${label}"`);
   }
   return Math.round(width);
 }

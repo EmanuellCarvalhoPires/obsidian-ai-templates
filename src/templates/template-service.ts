@@ -72,7 +72,7 @@ export interface CreatedNote {
 
 function asDataObject(value: unknown, label: string): Record<string, unknown> | undefined {
   if (value === undefined || value === null) return undefined;
-  let parsed = value;
+  let parsed: unknown = value;
   if (typeof value === "string") {
     try {
       parsed = JSON.parse(value) as unknown;

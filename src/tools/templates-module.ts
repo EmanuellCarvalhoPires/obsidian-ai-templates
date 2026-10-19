@@ -124,7 +124,8 @@ export function buildTools(service: TemplateService, loader: TemplateLoader): Hu
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
       handler: (args: Args) =>
         run(async () => {
-          const schema = await service.getSchema(String(args.template_id ?? ""));
+          const templateId = typeof args.template_id === "string" ? args.template_id : "";
+          const schema = await service.getSchema(templateId);
           return jsonResult(schema as unknown as Record<string, unknown>);
         }),
     },
