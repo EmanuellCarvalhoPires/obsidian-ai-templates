@@ -92,9 +92,9 @@ export interface ResolvedImage {
  * the Telegram AI Gateway).
  */
 export interface TemplatesService {
-  render(templateId: string, data: unknown, channel?: RenderChannel): Promise<string>;
-  getSchema(templateId: string): Promise<TemplateSchema>;
-  listTemplates(): Promise<TemplateSummary[]>;
+  render(templateId: string, data: unknown, channel?: RenderChannel, client?: string): Promise<string>;
+  getSchema(templateId: string, client?: string): Promise<TemplateSchema>;
+  listTemplates(client?: string): Promise<TemplateSummary[]>;
 }
 
 /** Settings stored in data.json. */

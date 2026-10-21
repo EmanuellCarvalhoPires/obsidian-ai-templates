@@ -15,20 +15,47 @@ export const MODULE_INSTRUCTIONS =
 
 type Args = Record<string, unknown>;
 
-function jsonResult(structured: Record<string, unknown>): HubToolResult {
-  return { content: [{ type: "text", text: JSON.stringify(structured, null, 2) }], structuredContent: structured };
+/** Masks secret values in a text (the Environment Keys output filter), or returns it as is. */
+export type Redactor = (text: string) => string;
+
+const NO_REDACTION: Redactor = (text) => text;
+
+/** Applies the redactor to every string inside a JSON-like value. */
+function redactDeep<T>(value: T, redact: Redactor): T {
+  if (typeof value === "string") return redact(value) as T;
+  if (Array.isArray(value)) return (value as unknown[]).map((item): unknown => redactDeep(item, redact)) as T;
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value as Record<string, unknown>).map(([k, v]): [string, unknown] => [k, redactDeep(v, redact)]);
+    return Object.fromEntries(entries) as T;
+  }
+  return value;
 }
 
-function errorResult(err: unknown): HubToolResult {
+function safeRedactor(redact: Redactor): Redactor {
+  return (text) => {
+    try {
+      return redact(text);
+    } catch {
+      return text;
+    }
+  };
+}
+
+function jsonResultOf(structured: Record<string, unknown>, redact: Redactor): HubToolResult {
+  const clean = redactDeep(structured, redact);
+  return { content: [{ type: "text", text: JSON.stringify(clean, null, 2) }], structuredContent: clean };
+}
+
+function errorResult(err: unknown, redact: Redactor): HubToolResult {
   const message = err instanceof UserError ? err.message : `Unexpected error: ${errorMessage(err)}`;
   if (!(err instanceof UserError)) console.debug("[AI Templates] Tool failed", err);
-  return { content: [{ type: "text", text: message }], isError: true };
+  return { content: [{ type: "text", text: redact(message) }], isError: true };
 }
 
-function errorResponse(err: unknown): HubResponse {
-  if (err instanceof UserError) return { status: HTTP_STATUS_BY_CODE[err.code], body: { error: err.message } };
+function errorResponse(err: unknown, redact: Redactor): HubResponse {
+  if (err instanceof UserError) return { status: HTTP_STATUS_BY_CODE[err.code], body: { error: redact(err.message) } };
   console.debug("[AI Templates] Route failed", err);
-  return { status: 500, body: { error: `Unexpected error: ${errorMessage(err)}` } };
+  return { status: 500, body: { error: redact(`Unexpected error: ${errorMessage(err)}`) } };
 }
 
 function asRecord(value: unknown): Args {
@@ -39,8 +66,8 @@ function asRecord(value: unknown): Args {
 // Results
 // ---------------------------------------------------------------------------
 
-async function listResult(loader: TemplateLoader, service: TemplateService): Promise<Record<string, unknown>> {
-  const templates = await service.listTemplates();
+async function listResult(loader: TemplateLoader, service: TemplateService, client?: string): Promise<Record<string, unknown>> {
+  const templates = await service.listTemplates(client);
   const { problems } = await loader.load();
   const out: Record<string, unknown> = { templates };
   if (problems.length > 0) {
@@ -89,12 +116,14 @@ const FIELD_SCHEMA = {
   additionalProperties: false,
 };
 
-export function buildTools(service: TemplateService, loader: TemplateLoader): HubTool[] {
+export function buildTools(service: TemplateService, loader: TemplateLoader, redactOutput: Redactor = NO_REDACTION): HubTool[] {
+  const redact = safeRedactor(redactOutput);
+  const jsonResult = (structured: Record<string, unknown>): HubToolResult => jsonResultOf(structured, redact);
   const run = async (fn: () => Promise<HubToolResult>): Promise<HubToolResult> => {
     try {
       return await fn();
     } catch (err) {
-      return errorResult(err);
+      return errorResult(err, redact);
     }
   };
 
@@ -107,7 +136,7 @@ export function buildTools(service: TemplateService, loader: TemplateLoader): Hu
         "If a template you expect is missing, the response lists problems found in the template notes.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-      handler: (_args: Args, _ctx: HubCallContext) => run(async () => jsonResult(await listResult(loader, service))),
+      handler: (_args: Args, ctx: HubCallContext) => run(async () => jsonResult(await listResult(loader, service, ctx.client?.name))),
     },
     {
       name: "get_template_schema",
@@ -122,10 +151,10 @@ export function buildTools(service: TemplateService, loader: TemplateLoader): Hu
         additionalProperties: false,
       },
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-      handler: (args: Args) =>
+      handler: (args: Args, ctx: HubCallContext) =>
         run(async () => {
           const templateId = typeof args.template_id === "string" ? args.template_id : "";
-          const schema = await service.getSchema(templateId);
+          const schema = await service.getSchema(templateId, ctx.client?.name);
           return jsonResult(schema as unknown as Record<string, unknown>);
         }),
     },
@@ -152,7 +181,7 @@ export function buildTools(service: TemplateService, loader: TemplateLoader): Hu
         additionalProperties: false,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-      handler: (args: Args) =>
+      handler: (args: Args, ctx: HubCallContext) =>
         run(async () =>
           jsonResult(
             noteResult(
@@ -161,6 +190,7 @@ export function buildTools(service: TemplateService, loader: TemplateLoader): Hu
                 data: args.data,
                 dataFile: args.data_file,
                 targetPath: args.target_path,
+                client: ctx.client?.name,
               }),
             ),
           ),
@@ -185,7 +215,7 @@ export function buildTools(service: TemplateService, loader: TemplateLoader): Hu
         additionalProperties: false,
       },
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-      handler: (args: Args) =>
+      handler: (args: Args, ctx: HubCallContext) =>
         run(async () =>
           jsonResult(
             previewResult(
@@ -195,6 +225,7 @@ export function buildTools(service: TemplateService, loader: TemplateLoader): Hu
                 dataFile: args.data_file,
                 targetPath: args.target_path,
                 channel: args.channel,
+                client: ctx.client?.name,
               }),
             ),
           ),
@@ -228,7 +259,7 @@ export function buildTools(service: TemplateService, loader: TemplateLoader): Hu
         additionalProperties: false,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-      handler: (args: Args) =>
+      handler: (args: Args, ctx: HubCallContext) =>
         run(async () => {
           const created = await service.createTemplate({
             templateId: args.template_id,
@@ -237,6 +268,7 @@ export function buildTools(service: TemplateService, loader: TemplateLoader): Hu
             fields: args.fields,
             markdownBody: args.markdown_body,
             collisionRule: args.collision_rule,
+            client: ctx.client?.name,
           });
           return jsonResult({
             success: true,
@@ -255,12 +287,14 @@ export function buildTools(service: TemplateService, loader: TemplateLoader): Hu
 // Routes
 // ---------------------------------------------------------------------------
 
-export function buildRoutes(service: TemplateService, loader: TemplateLoader): HubRoute[] {
+export function buildRoutes(service: TemplateService, loader: TemplateLoader, redactOutput: Redactor = NO_REDACTION): HubRoute[] {
+  const redact = safeRedactor(redactOutput);
   const guard = async (fn: () => Promise<HubResponse>): Promise<HubResponse> => {
     try {
-      return await fn();
+      const res = await fn();
+      return { ...res, body: redactDeep(res.body, redact) };
     } catch (err) {
-      return errorResponse(err);
+      return errorResponse(err, redact);
     }
   };
 
@@ -269,13 +303,13 @@ export function buildRoutes(service: TemplateService, loader: TemplateLoader): H
       method: "GET",
       path: "/templates",
       description: "Lists the templates (id and description) and the problems found in template notes.",
-      handler: () => guard(async () => ({ status: 200, body: await listResult(loader, service) })),
+      handler: (req: HubRequest) => guard(async () => ({ status: 200, body: await listResult(loader, service, req.client?.name) })),
     },
     {
       method: "GET",
       path: "/templates/:id",
       description: "Schema of one template: fields, rules and a JSON example.",
-      handler: (req: HubRequest) => guard(async () => ({ status: 200, body: await service.getSchema(req.params.id ?? "") })),
+      handler: (req: HubRequest) => guard(async () => ({ status: 200, body: await service.getSchema(req.params.id ?? "", req.client?.name) })),
     },
     {
       method: "POST",
@@ -290,6 +324,7 @@ export function buildRoutes(service: TemplateService, loader: TemplateLoader): H
             dataFile: body.data_file,
             targetPath: body.target_path,
             channel: body.channel,
+            client: req.client?.name,
           });
           return { status: 200, body: previewResult(result) };
         }),
@@ -306,6 +341,7 @@ export function buildRoutes(service: TemplateService, loader: TemplateLoader): H
             data: body.data,
             dataFile: body.data_file,
             targetPath: body.target_path,
+            client: req.client?.name,
           });
           return { status: 201, body: noteResult(result) };
         }),

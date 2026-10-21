@@ -360,6 +360,7 @@ export class TemplateManagerModal extends Modal {
         data: this.jsonInput,
         targetPath: this.targetPathOverride.trim() || undefined,
         channel: this.channel,
+        client: "Obsidian UI",
       });
 
       this.previewMetaEl.setText(
@@ -398,6 +399,7 @@ export class TemplateManagerModal extends Modal {
         fields: STARTER_FIELDS,
         markdownBody: STARTER_BODY,
         collisionRule: "incremental",
+        client: "Obsidian UI",
       });
       new Notice(t("core.notice.starterCreated", { path: created.path }));
       this.selectedId = created.templateId;

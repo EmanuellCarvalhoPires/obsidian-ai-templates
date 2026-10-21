@@ -1,6 +1,6 @@
 {
   "name": "obsidian-ai-templates",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Deterministic Markdown templates for AI agents. Fill a template with JSON and get aligned tables, images in your attachment folder and notes saved where you want.",
   "main": "main.js",
   "private": true,

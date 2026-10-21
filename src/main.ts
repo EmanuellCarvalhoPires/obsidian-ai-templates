@@ -3,7 +3,9 @@ import { Notice, Plugin, TAbstractFile, TFile, setIcon } from "obsidian";
 import { EcosystemConnector } from "./ecosystem/connector";
 import type { ConnectorStatus } from "./ecosystem/connector";
 import { MissingEcosystemModal } from "./ecosystem/dependency-modal";
-import { AI_ECOSYSTEM_API_VERSION } from "./ecosystem/types";
+import { createSetupHandler, publishRuleData, registerSetupHandler } from "./ecosystem/hooks-integration";
+import { AI_ECOSYSTEM_API_VERSION, SECRETS_SERVICE } from "./ecosystem/types";
+import type { SecretVaultService } from "./ecosystem/types";
 import { TemplateEngine } from "./engine/template-engine";
 import { t } from "./i18n";
 import { normalizeSettings } from "./settings/settings-store";
@@ -42,6 +44,7 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
   private statusIconEl: HTMLElement | undefined;
   private statusTextEl: HTMLElement | undefined;
   private unsubscribeLoader: (() => void) | undefined;
+  private unregisterSetupHandler: (() => void) | undefined;
 
   async onload(): Promise<void> {
     this.settings = normalizeSettings(await this.loadData());
@@ -85,23 +88,43 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
       notes: this.noteCreator,
       creator: this.creator,
       getSettings: () => this.settings,
+      getSecrets: () => this.getSecretsService(),
       logActivity: (entry) => {
         const api = this.connector?.getApi();
         if (!api) return;
         api.logActivity({
           moduleId: MODULE_ID,
+          client: entry.client,
           type: entry.type,
           target: entry.target,
           status: entry.status,
           durationMs: entry.durationMs,
           payload: entry.payload,
+          response: entry.response,
+          output: entry.output,
         });
       },
     });
 
-    this.unsubscribeLoader = this.loader.onLoaded(() => {
+    this.unsubscribeLoader = this.loader.onLoaded((res) => {
       this.updateStatusBar();
       this.settingTab?.refresh();
+      const api = this.connector?.getApi();
+      if (api) {
+        publishRuleData(api, res.templates);
+        api.logActivity({
+          moduleId: MODULE_ID,
+          client: "Obsidian UI",
+          type: "templates-reloaded",
+          target: `${res.templates.length} templates`,
+          status: 200,
+          durationMs: 0,
+          response: {
+            count: res.templates.length,
+            problems: res.problems.length,
+          },
+        });
+      }
     });
 
     this.setupStatusBar();
@@ -112,8 +135,8 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
         name: this.manifest.name,
         version: this.manifest.version,
         apiVersion: AI_ECOSYSTEM_API_VERSION,
-        tools: buildTools(this.service, this.loader),
-        routes: buildRoutes(this.service, this.loader),
+        tools: buildTools(this.service, this.loader, this.redactor),
+        routes: buildRoutes(this.service, this.loader, this.redactor),
         instructions: MODULE_INSTRUCTIONS,
       }),
       onStatus: () => {
@@ -124,6 +147,18 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
       onIncompatible: (reason) => new Notice(reason),
       onConnected: (api) => {
         api.registerService("templates", MODULE_ID, this.service);
+        publishRuleData(api, this.loader.lastResult()?.templates ?? []);
+        void this.loader.load();
+        this.unregisterSetupHandler?.();
+        this.unregisterSetupHandler = registerSetupHandler(
+          api,
+          createSetupHandler({
+            getSettings: () => this.settings,
+            saveSettings: () => this.saveSettings(),
+            getTemplateCount: () => this.loader.lastResult()?.templates.length ?? 0,
+            folderExists: (path) => this.vaultPort.kind(path) === "folder",
+          }),
+        );
       },
     });
     this.connector.start();
@@ -164,6 +199,7 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
 
   onunload(): void {
     this.unsubscribeLoader?.();
+    this.unregisterSetupHandler?.();
     this.connector?.stop();
   }
 
@@ -213,6 +249,20 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
   }
 
   // ---- Internals ------------------------------------------------------------
+
+  private getSecretsService(): SecretVaultService | undefined {
+    try {
+      return this.connector?.getApi()?.getService<SecretVaultService>(SECRETS_SERVICE);
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Output filter of Environment Keys: masks secret values in everything returned to agents. */
+  private readonly redactor = (text: string): string => {
+    const secrets = this.getSecretsService();
+    return secrets && typeof secrets.redact === "function" ? secrets.redact(text) : text;
+  };
 
   private registerVaultWatchers(): void {
     const invalidateIfMarkdown = (file: TAbstractFile, oldPath?: string): void => {
