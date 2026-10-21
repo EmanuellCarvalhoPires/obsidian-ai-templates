@@ -21,6 +21,7 @@ export interface CreateTemplateArgs {
   fields: unknown;
   markdownBody: unknown;
   collisionRule?: unknown;
+  client?: string;
 }
 
 export interface CreatedTemplate {

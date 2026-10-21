@@ -130,6 +130,21 @@ const templates = api.getService<TemplatesService>("templates");
 const html = await templates.render("sprint_report", data, "telegram");
 ```
 
+## Claude Code hooks and guided setup
+
+The AI Ecosystem core can install Claude Code hooks and a setup skill for this module in the vault's `.claude/` folder:
+
+- skill in `.claude/skills/configurar-ai-templates/`, hook entries in `.claude/settings.local.json` (or `settings.json`), state in `.claude/ai-ecosystem/`, and a block in `GEMINI.md` for Antigravity.
+- Modules downloaded from the AI Ecosystem module catalog show a confirmation screen listing what will be written before installing. Nothing in your own `.claude/` entries is overwritten.
+- Until the guided setup finishes, the module's tools are hidden from Claude Code (other clients still see them).
+- Hooks can be set to block, warn or off per module in the AI Ecosystem settings, and they fail open when Obsidian or the plugin is not running.
+
+**Protection hook:** a `Write` of a new note (the file does not exist yet) whose path matches a template target is redirected to `create_note_from_template`. `Edit` is never blocked. AI Templates feeds the core with the target globs of its templates (each `{{ ... }}` becomes `*`).
+
+**Setup keys:** `pasta_de_templates`, `regra_de_colisao`, `pastas_de_imagens_permitidas`, `limite_base64_mb`, `links_markdown_classicos`.
+
+**Environment Keys values:** `{{secret:NAME}}` placeholders that point to Environment Keys *values* inside template data are resolved only when a note is created (not in `preview_template`), and the outputs returned to the agent are redacted.
+
 ## Development
 
 ```bash
@@ -184,6 +199,21 @@ Todas as rotas REST ficam sob `/api/v1/ai-templates`.
 | `preview_template` | `POST /render` | Renderiza um template sem salvar arquivos (`channel`: `"obsidian"` ou `"telegram"`). |
 | `create_note_from_template` | `POST /notes` | Valida os dados, salva anexos, renderiza o template e grava a nota no cofre. |
 | `create_template` | — | Valida e cria (ou atualiza) uma nota de template na pasta de templates. |
+
+## Hooks do Claude Code e configuração guiada
+
+O núcleo AI Ecosystem pode instalar hooks do Claude Code e uma skill de configuração para este módulo na pasta `.claude/` do cofre:
+
+- skill em `.claude/skills/configurar-ai-templates/`, entradas de hook em `.claude/settings.local.json` (ou `settings.json`), estado em `.claude/ai-ecosystem/` e um bloco no `GEMINI.md` para o Antigravity.
+- Módulos baixados do catálogo de módulos do AI Ecosystem mostram uma tela de confirmação com o que será gravado antes de instalar. Nada das suas entradas em `.claude/` é sobrescrito.
+- Até a configuração guiada terminar, as tools do módulo ficam ocultas para o Claude Code (os outros clientes continuam vendo).
+- Os hooks podem ficar em bloquear, avisar ou desligado por módulo nas configurações do AI Ecosystem, e liberam a chamada se o Obsidian ou o plugin não estiver rodando.
+
+**Hook de proteção:** um `Write` de nota nova (o arquivo ainda não existe) cujo caminho case com o destino de algum template é redirecionado para `create_note_from_template`. O `Edit` nunca é bloqueado. O AI Templates envia ao núcleo os globs de destino dos templates (cada `{{ ... }}` vira `*`).
+
+**Chaves da configuração:** `pasta_de_templates`, `regra_de_colisao`, `pastas_de_imagens_permitidas`, `limite_base64_mb`, `links_markdown_classicos`.
+
+**Valores do Environment Keys:** placeholders `{{secret:NOME}}` que apontam para *valores* do Environment Keys dentro dos dados do template só são resolvidos na criação da nota (não no `preview_template`), e as saídas devolvidas ao agente são mascaradas.
 
 ## Licença
 
