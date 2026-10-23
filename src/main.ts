@@ -1,11 +1,11 @@
 // Entry point of the AI Templates plugin.
-import { Notice, Plugin, TAbstractFile, TFile, setIcon } from "obsidian";
+import { Notice, Plugin, TAbstractFile, normalizePath, setIcon } from "obsidian";
 import { EcosystemConnector } from "./ecosystem/connector";
 import type { ConnectorStatus } from "./ecosystem/connector";
 import { MissingEcosystemModal } from "./ecosystem/dependency-modal";
 import { createSetupHandler, publishRuleData, registerSetupHandler } from "./ecosystem/hooks-integration";
-import { AI_ECOSYSTEM_API_VERSION, SECRETS_SERVICE } from "./ecosystem/types";
-import type { SecretVaultService } from "./ecosystem/types";
+import { AI_ECOSYSTEM_API_VERSION, SECRETS_SERVICE, toolRunnerServiceName } from "./ecosystem/types";
+import type { AIEcosystemAPI, SecretVaultService } from "./ecosystem/types";
 import { TemplateEngine } from "./engine/template-engine";
 import { t } from "./i18n";
 import { normalizeSettings } from "./settings/settings-store";
@@ -18,14 +18,14 @@ import { TemplateLoader } from "./templates/template-loader";
 import type { LoadResult } from "./templates/template-loader";
 import { TemplateService } from "./templates/template-service";
 import { MODULE_ID, MODULE_INSTRUCTIONS, buildRoutes, buildTools } from "./tools/templates-module";
-import type { AITemplatesSettings } from "./types/template-types";
+import { TemplateToolRunner, buildTemplateIndexEntries } from "./tools/template-index";
+import type { AITemplatesSettings, TemplateDefinition } from "./types/template-types";
 import { AITemplatesSettingTab } from "./ui/settings-tab";
 import type { SettingsHost } from "./ui/settings-tab";
 import { TemplateManagerModal } from "./ui/template-modal";
 
-function isMarkdownFile(file: TAbstractFile): file is TFile {
-  return file instanceof TFile && file.extension === "md";
-}
+/** Quiet time after the last change in the templates folder before the templates are read again. */
+const RELOAD_DELAY_MS = 500;
 
 export default class AITemplatesPlugin extends Plugin implements SettingsHost {
   settings: AITemplatesSettings = normalizeSettings(undefined);
@@ -37,6 +37,7 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
   private noteCreator!: NoteCreator;
   private creator!: TemplateCreator;
   private service!: TemplateService;
+  private toolRunner!: TemplateToolRunner;
   private connector!: EcosystemConnector;
 
   private settingTab: AITemplatesSettingTab | undefined;
@@ -45,6 +46,7 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
   private statusTextEl: HTMLElement | undefined;
   private unsubscribeLoader: (() => void) | undefined;
   private unregisterSetupHandler: (() => void) | undefined;
+  private reloadTimer: number | undefined;
 
   async onload(): Promise<void> {
     this.settings = normalizeSettings(await this.loadData());
@@ -106,12 +108,15 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
       },
     });
 
+    this.toolRunner = new TemplateToolRunner(this.service, this.redactor);
+
     this.unsubscribeLoader = this.loader.onLoaded((res) => {
       this.updateStatusBar();
       this.settingTab?.refresh();
       const api = this.connector?.getApi();
       if (api) {
         publishRuleData(api, res.templates);
+        this.syncToolIndex(api, res.templates);
         api.logActivity({
           moduleId: MODULE_ID,
           client: "Obsidian UI",
@@ -147,8 +152,9 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
       onIncompatible: (reason) => new Notice(reason),
       onConnected: (api) => {
         api.registerService("templates", MODULE_ID, this.service);
+        api.registerService(toolRunnerServiceName(MODULE_ID), MODULE_ID, this.toolRunner);
         publishRuleData(api, this.loader.lastResult()?.templates ?? []);
-        void this.loader.load();
+        void this.loader.load().then((res) => this.syncToolIndex(api, res.templates));
         this.unregisterSetupHandler?.();
         this.unregisterSetupHandler = registerSetupHandler(
           api,
@@ -198,6 +204,7 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
   }
 
   onunload(): void {
+    if (this.reloadTimer !== undefined) window.clearTimeout(this.reloadTimer);
     this.unsubscribeLoader?.();
     this.unregisterSetupHandler?.();
     this.connector?.stop();
@@ -264,18 +271,44 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
     return secrets && typeof secrets.redact === "function" ? secrets.redact(text) : text;
   };
 
+  /** Keeps the templates, the hook rule data and tools.db in step with the templates folder. */
   private registerVaultWatchers(): void {
-    const invalidateIfMarkdown = (file: TAbstractFile, oldPath?: string): void => {
-      if (isMarkdownFile(file) || (typeof oldPath === "string" && oldPath.endsWith(".md"))) {
-        this.loader.invalidate();
+    // Only changes inside the templates folder matter; anything else in the vault is ignored.
+    const onChange = (file: TAbstractFile, oldPath?: string): void => {
+      if (this.isInTemplatesFolder(file.path) || (oldPath !== undefined && this.isInTemplatesFolder(oldPath))) {
+        this.scheduleReload();
       }
     };
 
-    this.registerEvent(this.app.vault.on("create", (file) => invalidateIfMarkdown(file)));
-    this.registerEvent(this.app.vault.on("modify", (file) => invalidateIfMarkdown(file)));
-    this.registerEvent(this.app.vault.on("delete", (file) => invalidateIfMarkdown(file)));
-    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => invalidateIfMarkdown(file, oldPath)));
-    this.registerEvent(this.app.metadataCache.on("changed", (file) => invalidateIfMarkdown(file)));
+    this.registerEvent(this.app.vault.on("create", (file) => onChange(file)));
+    this.registerEvent(this.app.vault.on("modify", (file) => onChange(file)));
+    this.registerEvent(this.app.vault.on("delete", (file) => onChange(file)));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => onChange(file, oldPath)));
+    this.registerEvent(this.app.metadataCache.on("changed", (file) => onChange(file)));
+  }
+
+  private isInTemplatesFolder(path: string): boolean {
+    const folder = normalizePath(this.settings.templatesFolder.trim()).replace(/^\/+|\/+$/g, "");
+    return folder === "" || path === folder || path.startsWith(`${folder}/`);
+  }
+
+  /** Reloads the templates shortly after the last change, so a burst of edits is one reload. */
+  private scheduleReload(): void {
+    if (this.reloadTimer !== undefined) window.clearTimeout(this.reloadTimer);
+    this.reloadTimer = window.setTimeout(() => {
+      this.reloadTimer = undefined;
+      this.loader.invalidate();
+      void this.loader.load();
+    }, RELOAD_DELAY_MS);
+  }
+
+  /** Writes the moldes into this module's tools.db (kind "template"), when the AI Ecosystem has the index. */
+  private syncToolIndex(api: AIEcosystemAPI, templates: readonly TemplateDefinition[]): void {
+    if (!api.toolIndex) return;
+    const entries = buildTemplateIndexEntries(templates, this.settings.defaultCollisionRule);
+    api.toolIndex.sync(MODULE_ID, entries).catch((err: unknown) => {
+      console.error("[AI Templates] Could not sync the tool index", err);
+    });
   }
 
   private setupStatusBar(): void {

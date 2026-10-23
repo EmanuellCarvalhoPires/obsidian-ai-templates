@@ -21,6 +21,9 @@ export interface CreateTemplateArgs {
   fields: unknown;
   markdownBody: unknown;
   collisionRule?: unknown;
+  appendBlock?: unknown;
+  indexBlock?: unknown;
+  indexHeading?: unknown;
   client?: string;
 }
 
@@ -55,6 +58,9 @@ export function serializeTemplate(def: TemplateDefinition): string {
   const front: Record<string, unknown> = { template_id: def.id, description: def.description };
   if (def.targetPath) front.target_path = def.targetPath;
   if (def.collisionRule) front.collision_rule = def.collisionRule;
+  if (def.appendBlock) front.append_block = def.appendBlock;
+  if (def.indexBlock) front.index_block = def.indexBlock;
+  if (def.indexHeading) front.index_heading = def.indexHeading;
   front.fields = Object.fromEntries(def.fields.map((f) => [f.name, fieldToYaml(f)]));
   const body = def.body.endsWith("\n") ? def.body : `${def.body}\n`;
   return `---\n${stringifyYaml(front).trimEnd()}\n---\n\n${body}`;
@@ -86,6 +92,17 @@ export class TemplateCreator {
       collisionRule = args.collisionRule as CollisionRule;
     }
 
+    const optionalText = (value: unknown, label: string): string | undefined => {
+      if (value === undefined || value === null || value === "") return undefined;
+      return requireText(value, label);
+    };
+    const appendBlock = optionalText(args.appendBlock, "append_block");
+    const indexBlock = optionalText(args.indexBlock, "index_block");
+    const indexHeading = optionalText(args.indexHeading, "index_heading")?.trim();
+    if ((indexBlock === undefined) !== (indexHeading === undefined)) {
+      throw new UserError("index_block and index_heading go together: send both or neither.");
+    }
+
     let rawFields = args.fields;
     if (typeof rawFields === "string") {
       try {
@@ -105,6 +122,9 @@ export class TemplateCreator {
       targetPath,
       collisionRule,
       fields: parsed.fields,
+      appendBlock,
+      indexBlock,
+      indexHeading,
       body,
       sourcePath: "",
     };

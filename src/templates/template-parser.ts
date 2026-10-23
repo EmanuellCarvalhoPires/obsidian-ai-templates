@@ -136,6 +136,22 @@ export function parseTemplateNote(path: string, content: string): ParsedNote {
     }
   }
 
+  const blockText = (key: string): string | undefined => {
+    const value = front[key];
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== "string" || value.trim() === "") {
+      error(`${key} must be a non-empty text.`);
+      return undefined;
+    }
+    return value.replace(/\r\n?/g, "\n").replace(/\s+$/, "");
+  };
+  const appendBlock = blockText("append_block");
+  const indexBlock = blockText("index_block");
+  const indexHeading = blockText("index_heading")?.trim();
+  if ((indexBlock === undefined) !== (indexHeading === undefined)) {
+    error('index_block and index_heading go together: set both (the line to insert and the heading it goes under) or neither.');
+  }
+
   const parsedFields = parseFields(front.fields);
   for (const message of parsedFields.errors) error(message);
 
@@ -151,6 +167,9 @@ export function parseTemplateNote(path: string, content: string): ParsedNote {
       targetPath,
       collisionRule,
       fields: parsedFields.fields,
+      appendBlock,
+      indexBlock,
+      indexHeading,
       body: cleanBody(body),
       sourcePath: path,
     },

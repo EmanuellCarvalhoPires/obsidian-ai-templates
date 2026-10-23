@@ -32,6 +32,12 @@ export class MemoryVault implements VaultPort {
     this.files.set(path, content);
   }
 
+  async processText(path: string, fn: (current: string) => string): Promise<void> {
+    const text = this.files.get(path);
+    if (text === undefined) throw new Error(`File not found: ${path}`);
+    this.files.set(path, fn(text));
+  }
+
   async readText(path: string): Promise<string> {
     const text = this.files.get(path);
     if (text === undefined) throw new Error(`File not found: ${path}`);

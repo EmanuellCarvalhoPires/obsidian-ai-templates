@@ -31,7 +31,7 @@ function redactDeep<T>(value: T, redact: Redactor): T {
   return value;
 }
 
-function safeRedactor(redact: Redactor): Redactor {
+export function safeRedactor(redact: Redactor): Redactor {
   return (text) => {
     try {
       return redact(text);
@@ -41,12 +41,12 @@ function safeRedactor(redact: Redactor): Redactor {
   };
 }
 
-function jsonResultOf(structured: Record<string, unknown>, redact: Redactor): HubToolResult {
+export function jsonResultOf(structured: Record<string, unknown>, redact: Redactor): HubToolResult {
   const clean = redactDeep(structured, redact);
   return { content: [{ type: "text", text: JSON.stringify(clean, null, 2) }], structuredContent: clean };
 }
 
-function errorResult(err: unknown, redact: Redactor): HubToolResult {
+export function errorResult(err: unknown, redact: Redactor): HubToolResult {
   const message = err instanceof UserError ? err.message : `Unexpected error: ${errorMessage(err)}`;
   if (!(err instanceof UserError)) console.debug("[AI Templates] Tool failed", err);
   return { content: [{ type: "text", text: redact(message) }], isError: true };
@@ -58,7 +58,7 @@ function errorResponse(err: unknown, redact: Redactor): HubResponse {
   return { status: 500, body: { error: redact(`Unexpected error: ${errorMessage(err)}`) } };
 }
 
-function asRecord(value: unknown): Args {
+export function asRecord(value: unknown): Args {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Args) : {};
 }
 
@@ -76,7 +76,7 @@ async function listResult(loader: TemplateLoader, service: TemplateService, clie
   return out;
 }
 
-function noteResult(result: Awaited<ReturnType<TemplateService["createNote"]>>): Record<string, unknown> {
+export function noteResult(result: Awaited<ReturnType<TemplateService["createNote"]>>): Record<string, unknown> {
   return {
     success: true,
     file_path: result.filePath,
@@ -88,7 +88,7 @@ function noteResult(result: Awaited<ReturnType<TemplateService["createNote"]>>):
   };
 }
 
-function previewResult(result: Awaited<ReturnType<TemplateService["preview"]>>): Record<string, unknown> {
+export function previewResult(result: Awaited<ReturnType<TemplateService["preview"]>>): Record<string, unknown> {
   return { markdown: result.markdown, target_path: result.targetPath, warnings: result.warnings };
 }
 
@@ -131,6 +131,11 @@ export function buildTools(service: TemplateService, loader: TemplateLoader, red
     {
       name: "list_templates",
       title: "List templates",
+      categoria: "Moldes",
+      tags: ["molde", "template", "lista", "nota"],
+      resumo: "Lista os moldes de notas disponíveis no cofre",
+      efeito: "leitura",
+      exposicao: "indice",
       description:
         "Lists the Markdown templates available in the vault (id and description). Call this first to pick a template, then call get_template_schema. " +
         "If a template you expect is missing, the response lists problems found in the template notes.",
@@ -141,6 +146,11 @@ export function buildTools(service: TemplateService, loader: TemplateLoader, red
     {
       name: "get_template_schema",
       title: "Get template schema",
+      categoria: "Moldes",
+      tags: ["molde", "template", "campos", "schema"],
+      resumo: "Mostra os campos, o destino e um exemplo de preenchimento de um molde",
+      efeito: "leitura",
+      exposicao: "indice",
       description:
         "Returns the fields of a template (type, required, description, table columns), the target_path and collision rule, usage notes and a JSON example of the data argument. " +
         "Fill the example and pass it to create_note_from_template or preview_template.",
@@ -161,6 +171,11 @@ export function buildTools(service: TemplateService, loader: TemplateLoader, red
     {
       name: "create_note_from_template",
       title: "Create note from template",
+      categoria: "Moldes",
+      tags: ["molde", "template", "nota", "criar"],
+      resumo: "Cria uma nota no cofre a partir de um molde preenchido com JSON",
+      efeito: "cofre",
+      exposicao: "indice",
       description:
         "Fills a template with data and saves the note in the vault. Tables are aligned and escaped for you; images are saved in the vault's attachment folder and embedded. " +
         "The note goes to the template's target_path unless you send target_path. If the file exists, the template's collision rule decides (incremental adds a number, overwrite replaces, error refuses). " +
@@ -199,6 +214,11 @@ export function buildTools(service: TemplateService, loader: TemplateLoader, red
     {
       name: "preview_template",
       title: "Preview template",
+      categoria: "Moldes",
+      tags: ["molde", "template", "preview", "renderizar"],
+      resumo: "Renderiza um molde com os dados sem salvar nenhum arquivo",
+      efeito: "cofre",
+      exposicao: "indice",
       description:
         "Renders a template with data and returns the Markdown without saving anything (images are checked but not written). " +
         'Use it to check a result before create_note_from_template. channel "telegram" renders for the Telegram AI Gateway (HTML, tables as monospace blocks).',
@@ -234,6 +254,11 @@ export function buildTools(service: TemplateService, loader: TemplateLoader, red
     {
       name: "create_template",
       title: "Create template",
+      categoria: "Moldes",
+      tags: ["molde", "template", "criar", "editar"],
+      resumo: "Cria ou substitui uma nota de molde na pasta de moldes",
+      efeito: "cofre",
+      exposicao: "indice",
       description:
         "Creates (or replaces, when the id exists) a template note in the templates folder, after checking it: the body must compile and every {{ variable }} it reads must be declared in fields. " +
         "The body is Liquid, not Handlebars: {{ titulo }}, {% if observacoes %}...{% else %}...{% endif %}, {% for item in itens %}...{% endfor %}. " +

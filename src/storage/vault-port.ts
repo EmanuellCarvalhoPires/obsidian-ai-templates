@@ -15,6 +15,8 @@ export interface VaultPort {
   /** Replaces the content of an existing file. */
   writeText(path: string, content: string): Promise<void>;
   readText(path: string): Promise<string>;
+  /** Atomic read-modify-write of an existing file (`vault.process`). `fn` must be synchronous. */
+  processText(path: string, fn: (current: string) => string): Promise<void>;
   createBinary(path: string, data: ArrayBuffer): Promise<void>;
   /** Path where the vault wants a new attachment named `filename`, for a note at `sourcePath`. */
   availableAttachmentPath(filename: string, sourcePath: string): Promise<string>;

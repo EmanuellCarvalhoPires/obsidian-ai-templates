@@ -4,6 +4,11 @@ export type CollisionRule = "incremental" | "overwrite" | "error";
 
 export const COLLISION_RULES: readonly CollisionRule[] = ["incremental", "overwrite", "error"];
 
+/** How create_note_from_template treats a note that already exists. */
+export type WriteMode = "create" | "append" | "upsert_section" | "overwrite";
+
+export const WRITE_MODES: readonly WriteMode[] = ["create", "append", "upsert_section", "overwrite"];
+
 export type FieldType = "string" | "number" | "boolean" | "date" | "table" | "image" | "list" | "object";
 
 export const FIELD_TYPES: readonly FieldType[] = [
@@ -38,6 +43,11 @@ export interface TemplateDefinition {
   targetPath?: string;
   collisionRule?: CollisionRule;
   fields: FieldSpec[];
+  /** Liquid block added to an existing note by mode "append" / "upsert_section" (default: the body). */
+  appendBlock?: string;
+  /** Liquid line inserted under `indexHeading` by mode "append" (for example a table of contents entry). */
+  indexBlock?: string;
+  indexHeading?: string;
   /** Note content after the frontmatter. */
   body: string;
   /** Vault path of the template note. */

@@ -1,6 +1,6 @@
 // Writes notes: creates the folders, applies the collision rule.
 import { UserError, errorMessage } from "../errors";
-import type { CollisionRule } from "../types/template-types";
+import type { CollisionRule, WriteMode } from "../types/template-types";
 import type { VaultPort } from "./vault-port";
 
 const MAX_INCREMENT = 1000;
@@ -14,6 +14,8 @@ export interface NotePlan {
   overwrite: boolean;
   /** True when the path differs from the requested one (rule "incremental"). */
   renamed: boolean;
+  /** True when the note exists and will be changed in place (modes "append" and "upsert_section"). */
+  merge?: boolean;
 }
 
 function split(path: string): { dir: string; base: string; ext: string } {
@@ -50,6 +52,27 @@ export class NoteCreator {
       if (this.vault.kind(candidate) === undefined) return { requested, path: candidate, overwrite: false, renamed: true };
     }
     throw new UserError(`Could not find a free name for "${requested}" after ${MAX_INCREMENT} tries.`, "conflict");
+  }
+
+  /**
+   * Decides the final path for a write mode. "create" follows the collision rule, "overwrite"
+   * replaces, and "append" / "upsert_section" change the existing note in place (or create it).
+   */
+  planFor(requested: string, mode: WriteMode, rule: CollisionRule): NotePlan {
+    if (mode === "create") return this.plan(requested, rule);
+    if (mode === "overwrite") return this.plan(requested, "overwrite");
+    const existing = this.vault.kind(requested);
+    if (existing === "file") return { requested, path: requested, overwrite: false, renamed: false, merge: true };
+    return this.plan(requested, rule);
+  }
+
+  /** Changes an existing note in one atomic step (vault.process). */
+  async modify(path: string, fn: (current: string) => string): Promise<void> {
+    try {
+      await this.vault.processText(path, fn);
+    } catch (err) {
+      throw new UserError(`Could not change "${path}": ${errorMessage(err)}`, "conflict");
+    }
   }
 
   /** Creates the missing folders of a vault directory path. */

@@ -31,6 +31,16 @@ export function checkDefinition(def: TemplateDefinition, engine: TemplateEngine,
   if (body.ok) body.variables.forEach((v) => used.add(v));
   else errors.push(`The template body does not compile: ${body.error.message}`);
 
+  for (const [label, text] of [
+    ["append_block", def.appendBlock],
+    ["index_block", def.indexBlock],
+  ] as const) {
+    if (text === undefined) continue;
+    const block = engine.validate(text);
+    if (block.ok) block.variables.forEach((v) => used.add(v));
+    else errors.push(`${label} does not compile: ${block.error.message}`);
+  }
+
   if (def.targetPath !== undefined) {
     const target = engine.validate(def.targetPath);
     if (target.ok) target.variables.forEach((v) => used.add(v));

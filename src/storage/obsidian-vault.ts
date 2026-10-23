@@ -31,6 +31,12 @@ export class ObsidianVaultPort implements VaultPort {
     await this.app.vault.modify(file, content);
   }
 
+  async processText(path: string, fn: (current: string) => string): Promise<void> {
+    const file = this.app.vault.getFileByPath(path);
+    if (!file) throw new Error(`File not found: ${path}`);
+    await this.app.vault.process(file, fn);
+  }
+
   async readText(path: string): Promise<string> {
     const file = this.app.vault.getFileByPath(path);
     if (!file) throw new Error(`File not found: ${path}`);
