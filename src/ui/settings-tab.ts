@@ -21,6 +21,8 @@ export interface SettingsHost {
   reloadTemplates(): Promise<LoadResult>;
   openTemplateManager(): void;
   openNote(path: string): Promise<void>;
+  /** Installs the starter templates that are missing, ignoring the install history. */
+  reinstallStarterTemplates(): Promise<void>;
 }
 
 function statusMeta(status: ConnectorStatus, detail?: string): { icon: string; state: string; title: string; desc: string } {
@@ -182,6 +184,29 @@ export class AITemplatesSettingTab extends PluginSettingTab {
           await this.host.saveSettings();
         });
       });
+
+    new Setting(containerEl)
+      .setName(t("settings.general.starterPack"))
+      .setDesc(t("settings.general.starterPackDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(settings.installStarterPack).onChange(async (val) => {
+          settings.installStarterPack = val;
+          await this.host.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName(t("settings.general.starterReinstall"))
+      .setDesc(t("settings.general.starterReinstallDesc"))
+      .addButton((btn) =>
+        btn
+          .setButtonText(t("settings.general.starterReinstallBtn"))
+          .setIcon("rotate-ccw")
+          .onClick(async () => {
+            await this.host.reinstallStarterTemplates();
+            this.display();
+          }),
+      );
 
     new Setting(containerEl)
       .setName(t("settings.general.base64Limit"))

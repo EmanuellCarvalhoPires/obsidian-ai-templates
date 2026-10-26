@@ -30,6 +30,14 @@ With **AI Templates**:
 2. Create template notes inside your configured templates folder (default: `Templates/AI`), or open the **AI Templates manager** (ribbon icon or command) and click **Create starter template**.
 3. Your AI client connected to AI Ecosystem immediately sees the template tools.
 
+## Starter templates
+
+On the first load the plugin installs a kit of generic templates in your templates folder, in the language of Obsidian (English or Portuguese, same `template_id`): `nota_reuniao` (meeting), `nota_diaria` (daily note), `revisao_semanal` (weekly review), `nota_pessoa` (person), `registro_decisao` (decision record), `receita_processo` (process recipe, ready to become a skill or flow) and `briefing_ia` (briefing to paste into a new AI conversation). They need no plugin besides Obsidian core.
+
+- Existing notes are never overwritten, and a template you delete is not created again. Templates added by later versions of the plugin are installed on the next load.
+- Turn it off with **Install starter templates** in the settings. The command **Reinstall starter templates** (or the button in the settings) restores the missing ones, including those you deleted.
+- Edit them freely: they are ordinary notes in your templates folder.
+
 ## Writing a template note
 
 A template is a regular Markdown note inside `Templates/AI` (or subfolders) with `template_id` and `description` in its YAML frontmatter:
@@ -187,6 +195,14 @@ Com o **AI Templates**:
 1. Instale e ative o **AI Ecosystem** e o **AI Templates**.
 2. Crie notas de template dentro da pasta configurada (padrão: `Templates/AI`), ou abra o **Gerenciador do AI Templates** (ícone na barra lateral ou comando) e clique em **Criar template de exemplo**.
 3. Seu cliente de IA conectado ao AI Ecosystem passará a enxergar as tools de template imediatamente.
+
+## Templates iniciais
+
+Na primeira carga o plugin instala na pasta de templates um kit de templates genéricos, no idioma do Obsidian (português ou inglês, mesmo `template_id`): `nota_reuniao`, `nota_diaria`, `revisao_semanal`, `nota_pessoa`, `registro_decisao`, `receita_processo` (receita de processo, pronta para virar skill ou fluxo) e `briefing_ia` (briefing para colar numa conversa nova com a IA). Não precisam de nenhum plugin além do núcleo do Obsidian.
+
+- Notas existentes nunca são sobrescritas, e um template que você apagar não é criado de novo. Templates acrescentados em versões futuras do plugin são instalados na próxima carga.
+- Desligue em **Instalar templates iniciais** nas configurações. O comando **Reinstalar templates iniciais** (ou o botão nas configurações) restaura os que faltam, inclusive os apagados.
+- Edite à vontade: são notas comuns na sua pasta de templates.
 
 ## Tools MCP e rotas REST
 

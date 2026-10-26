@@ -121,6 +121,10 @@ export interface AITemplatesSettings {
   base64LimitMb: number;
   /** Insert classic Markdown image links instead of wikilink embeds. */
   classicMarkdownLinks: boolean;
+  /** Install the starter templates in the templates folder (new ones also on later versions). */
+  installStarterPack: boolean;
+  /** Starter template ids already installed once, so one the user deleted is not created again. */
+  starterPackInstalledIds: string[];
 }
 
 export const TMPDIR_TOKEN = "{tmpdir}";
@@ -131,6 +135,8 @@ export const DEFAULT_SETTINGS: AITemplatesSettings = {
   allowedImageFolders: [TMPDIR_TOKEN, `${TMPDIR_TOKEN}/claude`],
   base64LimitMb: 2,
   classicMarkdownLinks: false,
+  installStarterPack: true,
+  starterPackInstalledIds: [],
 };
 
 export const MIN_BASE64_LIMIT_MB = 0.1;

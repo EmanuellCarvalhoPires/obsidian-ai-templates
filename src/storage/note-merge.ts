@@ -21,14 +21,14 @@ const FENCE_LINE = /^ {0,3}(`{3,}|~{3,})/;
 export function parseHeadingQuery(query: string): { level?: number; text: string } {
   const trimmed = query.trim();
   const match = /^(#{1,6})[ \t]+(.+)$/.exec(trimmed);
-  if (match) return { level: match[1]!.length, text: match[2]!.trim() };
+  if (match) return { level: match[1].length, text: match[2].trim() };
   return { text: trimmed };
 }
 
 /** Number of lines the frontmatter takes at the top of the note (0 when there is none). */
 function frontmatterLines(lines: string[]): number {
-  if (!/^﻿?---[ \t]*$/.test(lines[0] ?? "")) return 0;
-  for (let i = 1; i < lines.length; i++) if (/^---[ \t]*$/.test(lines[i]!)) return i + 1;
+  if (!/^\uFEFF?---[ \t]*$/.test(lines[0] ?? "")) return 0;
+  for (let i = 1; i < lines.length; i++) if (/^---[ \t]*$/.test(lines[i])) return i + 1;
   return 0;
 }
 
@@ -37,17 +37,17 @@ function scanHeadings(lines: string[]): Array<HeadingRef & { text: string }> {
   const out: Array<HeadingRef & { text: string }> = [];
   let fence: string | undefined;
   for (let i = frontmatterLines(lines); i < lines.length; i++) {
-    const line = lines[i]!;
+    const line = lines[i];
     const f = FENCE_LINE.exec(line);
     if (f) {
-      const marker = f[1]!;
+      const marker = f[1];
       if (fence === undefined) fence = marker;
       else if (marker[0] === fence[0] && marker.length >= fence.length) fence = undefined;
       continue;
     }
     if (fence !== undefined) continue;
     const h = HEADING_LINE.exec(line);
-    if (h) out.push({ line: i, level: h[1]!.length, text: h[2]!.trim() });
+    if (h) out.push({ line: i, level: h[1].length, text: h[2].trim() });
   }
   return out;
 }
@@ -59,7 +59,7 @@ function findHeading(lines: string[], query: string): (HeadingRef & { end: numbe
     (h) => h.text.toLowerCase() === wanted.text.toLowerCase() && (wanted.level === undefined || h.level === wanted.level),
   );
   if (index === -1) return undefined;
-  const found = headings[index]!;
+  const found = headings[index];
   // The section ends at the next heading of the same or a higher level.
   const next = headings.slice(index + 1).find((h) => h.level <= found.level);
   return { line: found.line, level: found.level, end: next ? next.line : lines.length };
@@ -94,7 +94,7 @@ export function insertUnderHeading(text: string, heading: string, line: string):
     return { text, warnings: [`The heading "${heading}" was not found in the note, so the index line was not inserted.`] };
   }
   let last = found.line;
-  for (let i = found.line + 1; i < found.end; i++) if (lines[i]!.trim() !== "") last = i;
+  for (let i = found.line + 1; i < found.end; i++) if (lines[i].trim() !== "") last = i;
   const inserted = line.split("\n");
   lines.splice(last + 1, 0, ...inserted);
   return { text: lines.join(eolOf(text)), warnings: [] };
@@ -115,8 +115,8 @@ export function replaceSection(text: string, section: string, content: string): 
   let body = content.split("\n");
   const first = body.findIndex((l) => l.trim() !== "");
   if (first !== -1) {
-    const h = HEADING_LINE.exec(body[first]!);
-    if (h && h[2]!.trim().toLowerCase() === query.text.toLowerCase() && (query.level === undefined || h[1]!.length === query.level)) {
+    const h = HEADING_LINE.exec(body[first]);
+    if (h && h[2].trim().toLowerCase() === query.text.toLowerCase() && (query.level === undefined || h[1].length === query.level)) {
       body = body.slice(first + 1);
     }
   }

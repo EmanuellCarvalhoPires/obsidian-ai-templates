@@ -24,6 +24,10 @@ const strings: StringTable = {
     "core.notice.reloadedProblems": "Reloaded {count} template(s) ({problems} problem(s)).",
     "core.notice.saveFailed": "Could not save the AI Templates settings.",
     "core.notice.starterCreated": "Created starter template at {path}.",
+    "core.cmd.reinstallStarter": "Reinstall starter templates",
+    "core.notice.starterPackInstalled": "Installed {count} starter template(s) in {folder}.",
+    "core.notice.starterPackNothing": "All starter templates are already in {folder}.",
+    "core.notice.starterPackFailed": "Could not install the starter templates.",
 
     // Dependency modal
     "dependency.title": "AI Ecosystem is required",
@@ -66,6 +70,12 @@ const strings: StringTable = {
     "settings.general.collision.error": "Return an error",
     "settings.general.classicLinks": "Use classic Markdown links for images",
     "settings.general.classicLinksDesc": "Insert ![alt](path) instead of ![[file|size]] wikilink embeds.",
+    "settings.general.starterPack": "Install starter templates",
+    "settings.general.starterPackDesc":
+      "Adds a kit of generic templates (meeting, daily note, weekly review, person, decision, process, AI briefing) to the templates folder. Existing notes are never overwritten, and a template you delete is not created again.",
+    "settings.general.starterReinstall": "Reinstall starter templates",
+    "settings.general.starterReinstallDesc": "Restores the starter templates that are missing from the templates folder, even ones you deleted.",
+    "settings.general.starterReinstallBtn": "Reinstall",
     "settings.general.base64Limit": "Maximum Base64 image size (MB)",
     "settings.general.base64LimitDesc": "Largest Base64 image payload accepted from an agent (0.1 to 50 MB). Local file paths are always preferred.",
 
@@ -140,6 +150,10 @@ const strings: StringTable = {
     "core.notice.reloadedProblems": "{count} template(s) recarregado(s) ({problems} problema(s)).",
     "core.notice.saveFailed": "Não foi possível salvar as configurações do AI Templates.",
     "core.notice.starterCreated": "Template de exemplo criado em {path}.",
+    "core.cmd.reinstallStarter": "Reinstalar templates iniciais",
+    "core.notice.starterPackInstalled": "{count} template(s) inicial(is) instalado(s) em {folder}.",
+    "core.notice.starterPackNothing": "Todos os templates iniciais já estão em {folder}.",
+    "core.notice.starterPackFailed": "Não foi possível instalar os templates iniciais.",
 
     // Dependency modal
     "dependency.title": "O plugin AI Ecosystem é necessário",
@@ -182,6 +196,12 @@ const strings: StringTable = {
     "settings.general.collision.error": "Retornar um erro",
     "settings.general.classicLinks": "Usar links Markdown clássicos para imagens",
     "settings.general.classicLinksDesc": "Insere ![alt](caminho) em vez de embeds wikilink ![[arquivo|tamanho]].",
+    "settings.general.starterPack": "Instalar templates iniciais",
+    "settings.general.starterPackDesc":
+      "Adiciona à pasta de templates um kit de templates genéricos (reunião, nota diária, revisão semanal, pessoa, decisão, processo, briefing para IA). Notas existentes nunca são sobrescritas, e um template que você apagar não é criado de novo.",
+    "settings.general.starterReinstall": "Reinstalar templates iniciais",
+    "settings.general.starterReinstallDesc": "Restaura os templates iniciais que faltam na pasta de templates, inclusive os que você apagou.",
+    "settings.general.starterReinstallBtn": "Reinstalar",
     "settings.general.base64Limit": "Tamanho máximo de imagem em Base64 (MB)",
     "settings.general.base64LimitDesc": "Maior imagem em Base64 aceita de um agente (0.1 a 50 MB). Caminhos de arquivos locais são sempre preferidos.",
 

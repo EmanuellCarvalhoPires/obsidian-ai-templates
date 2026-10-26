@@ -45,6 +45,15 @@ function normalizeAllowedFolders(value: unknown): string[] {
   return out;
 }
 
+function normalizeIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item === "string" && item.trim() !== "" && !out.includes(item.trim())) out.push(item.trim());
+  }
+  return out;
+}
+
 function clampBase64Limit(value: unknown): number {
   const num = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   if (!Number.isFinite(num)) return DEFAULT_SETTINGS.base64LimitMb;
@@ -65,5 +74,8 @@ export function normalizeSettings(raw: unknown): AITemplatesSettings {
       typeof data.classicMarkdownLinks === "boolean"
         ? data.classicMarkdownLinks
         : DEFAULT_SETTINGS.classicMarkdownLinks,
+    installStarterPack:
+      typeof data.installStarterPack === "boolean" ? data.installStarterPack : DEFAULT_SETTINGS.installStarterPack,
+    starterPackInstalledIds: normalizeIdList(data.starterPackInstalledIds),
   };
 }

@@ -114,6 +114,12 @@ describe("i18n, settings-store, EcosystemConnector, and dependency-modal", () =>
         allowedImageFolders: ["{tmpdir}", "/custom/dir"],
         base64LimitMb: 5.56,
         classicMarkdownLinks: true,
+        installStarterPack: true,
+        starterPackInstalledIds: [],
+      });
+      expect(normalizeSettings({ installStarterPack: false, starterPackInstalledIds: ["a", " a ", "", 3, "b"] })).toMatchObject({
+        installStarterPack: false,
+        starterPackInstalledIds: ["a", "b"],
       });
     });
   });

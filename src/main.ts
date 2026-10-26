@@ -7,8 +7,9 @@ import { createSetupHandler, publishRuleData, registerSetupHandler } from "./eco
 import { AI_ECOSYSTEM_API_VERSION, SECRETS_SERVICE, toolRunnerServiceName } from "./ecosystem/types";
 import type { AIEcosystemAPI, SecretVaultService } from "./ecosystem/types";
 import { TemplateEngine } from "./engine/template-engine";
-import { t } from "./i18n";
+import { currentLanguage, t } from "./i18n";
 import { normalizeSettings } from "./settings/settings-store";
+import { installStarterPack } from "./starter/starter-pack";
 import { AttachmentService } from "./storage/attachment-service";
 import { createNodeFs } from "./storage/node-fs";
 import { NoteCreator } from "./storage/note-creator";
@@ -195,11 +196,18 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
       },
     });
 
+    this.addCommand({
+      id: "reinstall-starter-templates",
+      name: t("core.cmd.reinstallStarter"),
+      callback: () => void this.reinstallStarterTemplates(),
+    });
+
     this.settingTab = new AITemplatesSettingTab(this.app, this, this);
     this.addSettingTab(this.settingTab);
 
     this.app.workspace.onLayoutReady(() => {
-      void this.loader.load();
+      // The starter templates go in first, so the first load already lists them.
+      void this.installStarterTemplates(false).finally(() => void this.loader.load());
     });
   }
 
@@ -248,6 +256,10 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
     }).open();
   }
 
+  async reinstallStarterTemplates(): Promise<void> {
+    await this.installStarterTemplates(true);
+  }
+
   async openNote(path: string): Promise<void> {
     const file = this.app.vault.getFileByPath(path);
     if (!file) return;
@@ -256,6 +268,35 @@ export default class AITemplatesPlugin extends Plugin implements SettingsHost {
   }
 
   // ---- Internals ------------------------------------------------------------
+
+  /**
+   * Installs the starter templates that are missing. `restore` ignores the install history (the
+   * reinstall command and button); otherwise it follows the setting and skips deleted templates.
+   */
+  private async installStarterTemplates(restore: boolean): Promise<void> {
+    if (!restore && !this.settings.installStarterPack) return;
+    try {
+      const folder = this.settings.templatesFolder;
+      const installed = await installStarterPack({
+        vault: this.vaultPort,
+        folder,
+        installedIds: restore ? [] : this.settings.starterPackInstalledIds,
+        locale: currentLanguage(),
+      });
+      if (installed.length > 0) {
+        this.settings.starterPackInstalledIds = Array.from(
+          new Set([...this.settings.starterPackInstalledIds, ...installed]),
+        );
+        await this.saveSettings();
+        new Notice(t("core.notice.starterPackInstalled", { count: installed.length, folder }));
+      } else if (restore) {
+        new Notice(t("core.notice.starterPackNothing", { folder }));
+      }
+    } catch (err) {
+      console.error("[AI Templates] Could not install the starter templates", err);
+      new Notice(t("core.notice.starterPackFailed"));
+    }
+  }
 
   private getSecretsService(): SecretVaultService | undefined {
     try {
